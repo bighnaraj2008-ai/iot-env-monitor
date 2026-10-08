@@ -153,3 +153,56 @@ cp .env.example .env
 
 ---
 
+## 🚀 Quick Start: Docker & Docker Compose
+
+Launch the complete stack (Eclipse Mosquitto broker + Python monitor service) with a single command:
+
+```bash
+# 1. Build and run containers in detached mode
+docker compose up -d --build
+
+# 2. Inspect real-time service logs
+docker compose logs -f env-monitor
+
+# 3. Stop containers and preserve database volumes
+docker compose down
+```
+
+The SQLite database is persisted inside a Docker named volume (`monitor_data`), mounted at `/data/env_data.db`.
+
+---
+
+## 🐍 Running Python Backend Locally
+
+### 1. Prerequisites
+- Python 3.12+
+- A running MQTT broker (e.g., local Mosquitto or Docker broker on port 1883)
+
+### 2. Setup Virtual Environment
+```bash
+# Navigate to project folder
+cd iot-env-monitor
+
+# Create and activate virtual environment
+python -m venv venv
+# On Linux/macOS:
+source venv/bin/activate
+# On Windows:
+.\venv\Scripts\activate
+
+# Install dependencies
+pip install -r service/requirements.txt
+```
+
+### 3. Start the Monitoring Service
+```bash
+python -m service.monitor
+```
+
+Command-line overrides are also supported:
+```bash
+python -m service.monitor --broker localhost --port 1883 --topic home/room1/env --temp-threshold 28.5 --db env_data.db
+```
+
+---
+
