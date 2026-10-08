@@ -1,8 +1,13 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <PubSubClient.h>
 #include "config.h"
 
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
+
 unsigned long lastWifiRetryTime = 0;
+unsigned long lastMqttRetryTime = 0;
 
 void setupWiFi() {
     delay(10);
@@ -39,12 +44,49 @@ void ensureWiFiConnection() {
     }
 }
 
+bool ensureMqttConnection() {
+    if (mqttClient.connected()) {
+        return true;
+    }
+    if (WiFi.status() != WL_CONNECTED) {
+        return false;
+    }
+    unsigned long currentMillis = millis();
+    if (currentMillis - lastMqttRetryTime < MQTT_RECONNECT_INTERVAL_MS) {
+        return false;
+    }
+    lastMqttRetryTime = currentMillis;
+    Serial.print("[MQTT] Attempting connection to broker: ");
+    Serial.printf("%s:%d ... ", MQTT_BROKER, MQTT_PORT);
+
+    bool connected = false;
+    if (strlen(MQTT_USER) > 0) {
+        connected = mqttClient.connect(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASSWORD);
+    } else {
+        connected = mqttClient.connect(MQTT_CLIENT_ID);
+    }
+
+    if (connected) {
+        Serial.println("CONNECTED!");
+    } else {
+        Serial.printf("FAILED (rc=%d). Retrying in %lu ms\n", mqttClient.state(), (unsigned long)MQTT_RECONNECT_INTERVAL_MS);
+    }
+    return mqttClient.connected();
+}
+
 void setup() {
     Serial.begin(115200);
     setupWiFi();
+    mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
 }
 
 void loop() {
     ensureWiFiConnection();
+    if (WiFi.status() == WL_CONNECTED) {
+        if (!mqttClient.connected()) {
+            ensureMqttConnection();
+        }
+        mqttClient.loop();
+    }
     delay(10);
 }
