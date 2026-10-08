@@ -1,4 +1,7 @@
 services:
+  # =========================================================================
+  # Eclipse Mosquitto MQTT Broker
+  # =========================================================================
   mqtt-broker:
     image: eclipse-mosquitto:2
     container_name: iot-mqtt-broker
@@ -12,11 +15,47 @@ services:
       - mosquitto_log:/mosquitto/log
     networks:
       - iot-network
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/broker/version' -C 1 -i healthcheck -W 3 || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # =========================================================================
+  # Python Environment Monitoring Service
+  # =========================================================================
+  env-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: iot-env-monitor-service
+    restart: unless-stopped
+    depends_on:
+      mqtt-broker:
+        condition: service_started
+    environment:
+      - MQTT_BROKER=mqtt-broker
+      - MQTT_PORT=1883
+      - MQTT_TOPIC=${MQTT_TOPIC:-home/room1/env}
+      - MQTT_CLIENT_ID=${MQTT_CLIENT_ID:-docker-env-monitor-service}
+      - TEMP_THRESHOLD=${TEMP_THRESHOLD:-30.0}
+      - HUM_THRESHOLD=${HUM_THRESHOLD:-85.0}
+      - DB_PATH=/data/env_data.db
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - monitor_data:/data
+    networks:
+      - iot-network
 
 volumes:
   mosquitto_data:
+    driver: local
   mosquitto_log:
+    driver: local
   monitor_data:
+    driver: local
+
 networks:
   iot-network:
     driver: bridge
