@@ -206,3 +206,103 @@ python -m service.monitor --broker localhost --port 1883 --topic home/room1/env 
 
 ---
 
+## 🧪 Unit Testing & Code Coverage
+
+The Python service includes a comprehensive `pytest` test suite covering:
+- **JSON Payload Parsing**: Valid payloads, byte inputs, missing fields, string numbers, malformed JSON, and NaN resilience.
+- **Threshold Alert Evaluator**: Normal temperatures, boundary values, multi-threshold breaches.
+- **SQLite Database**: Table schema creation, reading insertions, alert flags, row count, and query history.
+- **Service Orchestrator**: Mock MQTT message routing, non-blocking callback handling.
+
+### Run Unit Tests
+```bash
+pytest service/test_monitor.py -v
+```
+
+### Run Tests with Coverage Report
+```bash
+pytest service/test_monitor.py -v --cov=service --cov-report=term-missing
+```
+
+---
+
+## ⚡ ESP32 Firmware Flashing & Build
+
+### 1. Install PlatformIO
+Using VS Code:
+- Install the **PlatformIO IDE** extension.
+- Open the `firmware/` directory.
+
+Using CLI:
+```bash
+pip install platformio
+```
+
+### 2. Configure Wi-Fi & Broker Settings
+Edit [firmware/include/config.h](firmware/include/config.h):
+```cpp
+#define WIFI_SSID "Your_WiFi_SSID"
+#define WIFI_PASSWORD "Your_WiFi_Password"
+#define MQTT_BROKER "192.168.1.100"    // IP of machine running Mosquitto
+#define MQTT_PORT 1883
+#define MQTT_TOPIC "home/room1/env"
+```
+
+### 3. Build & Flash
+Connect your ESP32 via USB and run:
+```bash
+# Build firmware binary
+pio run -d firmware
+
+# Upload to ESP32 board
+pio run -d firmware -t upload
+
+# Launch Serial Monitor (115200 baud)
+pio device monitor -d firmware
+```
+
+---
+
+## 📡 Manual Telemetry & Verification
+
+You can simulate ESP32 telemetry publishes using the `mosquitto_pub` CLI tool:
+
+### Publish Normal Reading
+```bash
+mosquitto_pub -h localhost -p 1883 -t "home/room1/env" -m '{"temp": 24.2, "hum": 55.0}'
+```
+**Service Log:**
+```text
+2026-10-08 20:45:00 [INFO] [root] [OK] Stored reading #1: Temp=24.2°C, Hum=55.0% (Topic: home/room1/env)
+```
+
+### Publish Threshold Breach (Triggers Alert)
+```bash
+mosquitto_pub -h localhost -p 1883 -t "home/room1/env" -m '{"temp": 34.8, "hum": 62.0}'
+```
+**Service Log:**
+```text
+2026-10-08 20:45:05 [WARNING] [root] [ALERT TRIGGERED] Temperature (34.8 °C) exceeded threshold (30.0 °C)
+2026-10-08 20:45:05 [INFO] [root] [ALERT] Stored reading #2: Temp=34.8°C, Hum=62.0% (Topic: home/room1/env)
+```
+
+### Inspect Stored SQLite Records
+```bash
+sqlite3 env_data.db "SELECT id, timestamp, temperature, humidity, is_alert, alert_reason FROM env_readings;"
+```
+
+---
+
+## 🔄 CI/CD Workflow
+
+The GitHub Actions workflow at [.github/workflows/ci.yml](.github/workflows/ci.yml) executes on every push and pull request to `main`/`master`:
+
+1. **Python Service Tests**: Runs `pytest` with full code coverage verification on Python 3.12.
+2. **PlatformIO Firmware Compilation**: Caches dependencies, sets up PlatformIO, and verifies clean compilation of the ESP32 firmware for `esp32dev`.
+3. **Docker Compose Validation**: Ensures Docker Compose configurations and network definitions are valid and ready for deployment.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
