@@ -11,6 +11,8 @@ DHT dht(DHT_PIN, DHT_TYPE);
 
 unsigned long lastWifiRetryTime = 0;
 unsigned long lastMqttRetryTime = 0;
+unsigned long lastPublishTime = 0;
+const unsigned long PUBLISH_INTERVAL_MS = 5000;
 
 void setupWiFi() {
     delay(10);
@@ -116,6 +118,18 @@ void loop() {
             ensureMqttConnection();
         }
         mqttClient.loop();
+    }
+
+    unsigned long currentMillis = millis();
+    if (currentMillis - lastPublishTime >= PUBLISH_INTERVAL_MS) {
+        lastPublishTime = currentMillis;
+        float temperature = 0.0;
+        float humidity = 0.0;
+        if (readEnvironmentalData(temperature, humidity)) {
+            if (mqttClient.connected()) {
+                publishTelemetry(temperature, humidity);
+            }
+        }
     }
     delay(10);
 }
