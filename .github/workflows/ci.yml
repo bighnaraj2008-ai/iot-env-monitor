@@ -7,3 +7,24 @@ on:
     branches: [ main, master ]
 
 jobs:
+  test-python-service:
+    name: Run Python Service Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r service/requirements.txt
+
+      - name: Run Pytest Suite with Coverage
+        run: |
+          pytest service/test_monitor.py -v --cov=service --cov-report=term-missing
