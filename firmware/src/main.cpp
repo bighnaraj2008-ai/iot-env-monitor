@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <DHT.h>
+#include <ArduinoJson.h>
 #include "config.h"
 
 WiFiClient espClient;
@@ -87,6 +88,18 @@ bool readEnvironmentalData(float &temperature, float &humidity) {
     temperature = round(readT * 10.0) / 10.0;
     humidity = round(readH * 10.0) / 10.0;
     return true;
+}
+
+void publishTelemetry(float temperature, float humidity) {
+    JsonDocument doc;
+    doc["temp"] = temperature;
+    doc["hum"] = humidity;
+
+    char jsonBuffer[128];
+    serializeJson(doc, jsonBuffer, sizeof(jsonBuffer));
+
+    Serial.printf("[MQTT PUBLISH] Topic: %s | Payload: %s\n", MQTT_TOPIC, jsonBuffer);
+    mqttClient.publish(MQTT_TOPIC, jsonBuffer, false);
 }
 
 void setup() {
