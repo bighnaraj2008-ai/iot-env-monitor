@@ -1,0 +1,8 @@
+services:
+volumes:
+  mosquitto_data:
+  mosquitto_log:
+  monitor_data:
+networks:
+  iot-network:
+    driver: bridge
