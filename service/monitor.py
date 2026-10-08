@@ -40,3 +40,42 @@ class Config:
             db_path=args.db or os.getenv("DB_PATH", "env_data.db"),
             log_level=(args.log_level or os.getenv("LOG_LEVEL", "INFO")).upper(),
         )
+
+import sqlite3
+import threading
+import logging
+
+class DatabaseManager:
+    """Manages SQLite storage for environmental telemetry readings."""
+
+    def __init__(self, db_path: str = "env_data.db"):
+        self.db_path = db_path
+        self._lock = threading.Lock()
+        self._connection: Optional[sqlite3.Connection] = None
+        self._init_database()
+
+    def _get_connection(self) -> sqlite3.Connection:
+        if self._connection is None:
+            self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
+            self._connection.row_factory = sqlite3.Row
+        return self._connection
+
+    def _init_database(self) -> None:
+        with self._lock:
+            conn = self._get_connection()
+            with conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS env_readings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT NOT NULL,
+                        topic TEXT NOT NULL,
+                        temperature REAL NOT NULL,
+                        humidity REAL NOT NULL,
+                        is_alert INTEGER NOT NULL DEFAULT 0,
+                        alert_reason TEXT,
+                        raw_payload TEXT
+                    )
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON env_readings (timestamp)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_is_alert ON env_readings (is_alert)")
+        logging.info("[DATABASE] Initialized SQLite database at '%s'", self.db_path)
