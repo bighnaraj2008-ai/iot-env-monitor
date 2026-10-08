@@ -1,10 +1,12 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <DHT.h>
 #include "config.h"
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
+DHT dht(DHT_PIN, DHT_TYPE);
 
 unsigned long lastWifiRetryTime = 0;
 unsigned long lastMqttRetryTime = 0;
@@ -74,8 +76,22 @@ bool ensureMqttConnection() {
     return mqttClient.connected();
 }
 
+bool readEnvironmentalData(float &temperature, float &humidity) {
+    float readT = dht.readTemperature();
+    float readH = dht.readHumidity();
+
+    if (isnan(readT) || isnan(readH)) {
+        Serial.println("[SENSOR ERROR] Failed to read from DHT sensor!");
+        return false;
+    }
+    temperature = round(readT * 10.0) / 10.0;
+    humidity = round(readH * 10.0) / 10.0;
+    return true;
+}
+
 void setup() {
     Serial.begin(115200);
+    dht.begin();
     setupWiFi();
     mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
 }

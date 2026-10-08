@@ -37,4 +37,8 @@
 
 #define MQTT_RECONNECT_INTERVAL_MS 5000
 
+#define DHT_PIN 4
+#define DHT_TYPE DHT22
+#define ENABLE_SIMULATION_FALLBACK true
+
 #endif // CONFIG_H
