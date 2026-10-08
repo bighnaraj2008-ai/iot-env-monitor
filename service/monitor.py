@@ -133,3 +133,54 @@ class EnvironmentMonitor:
 
     def _on_disconnect(self, client: Any, userdata: Any, *args: Any) -> None:
         logging.warning("[MQTT] Disconnected from broker. Auto-reconnect active.")
+
+import json
+import math
+from datetime import datetime, timezone
+
+@dataclass
+class TelemetryReading:
+    temperature: float
+    humidity: float
+    raw_payload: str
+    timestamp: str = ""
+
+    def __post_init__(self):
+        if not self.timestamp:
+            self.timestamp = datetime.now(timezone.utc).isoformat()
+
+class PayloadParser:
+    @staticmethod
+    def parse(raw_data: str | bytes) -> Optional[TelemetryReading]:
+        try:
+            if isinstance(raw_data, bytes):
+                decoded_str = raw_data.decode("utf-8", errors="replace")
+            else:
+                decoded_str = str(raw_data)
+
+            if not decoded_str.strip():
+                return None
+
+            data = json.loads(decoded_str)
+            if not isinstance(data, dict):
+                return None
+
+            raw_temp = data.get("temp", data.get("temperature"))
+            raw_hum = data.get("hum", data.get("humidity"))
+
+            if raw_temp is None or raw_hum is None:
+                return None
+
+            temperature = float(raw_temp)
+            humidity = float(raw_hum)
+
+            if math.isnan(temperature) or math.isnan(humidity):
+                return None
+
+            return TelemetryReading(
+                temperature=round(temperature, 2),
+                humidity=round(humidity, 2),
+                raw_payload=decoded_str,
+            )
+        except Exception:
+            return None
