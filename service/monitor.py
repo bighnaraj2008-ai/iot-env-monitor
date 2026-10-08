@@ -79,3 +79,57 @@ class DatabaseManager:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON env_readings (timestamp)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_is_alert ON env_readings (is_alert)")
         logging.info("[DATABASE] Initialized SQLite database at '%s'", self.db_path)
+
+from typing import Any
+
+try:
+    # pyrefly: ignore [missing-import]
+    import paho.mqtt.client as mqtt
+    try:
+        # pyrefly: ignore [missing-import]
+        from paho.mqtt.enums import CallbackAPIVersion
+        PAHO_V2 = True
+    except (ImportError, AttributeError):
+        PAHO_V2 = False
+except ImportError:
+    mqtt = None
+    PAHO_V2 = False
+
+class EnvironmentMonitor:
+    def __init__(self, config: Config, db_manager: Optional[DatabaseManager] = None):
+        self.config = config
+        self.db = db_manager or DatabaseManager(config.db_path)
+        self._running = False
+        self._mqtt_client: Any = None
+        self._setup_mqtt_client()
+
+    def _setup_mqtt_client(self) -> None:
+        if mqtt is None:
+            logging.error("[MQTT] paho-mqtt package is not installed!")
+            return
+
+        if PAHO_V2:
+            self._mqtt_client = mqtt.Client(
+                CallbackAPIVersion.VERSION2,
+                client_id=self.config.client_id,
+            )
+        else:
+            self._mqtt_client = mqtt.Client(client_id=self.config.client_id)
+
+        if self.config.username:
+            self._mqtt_client.username_pw_set(self.config.username, self.config.password)
+
+        self._mqtt_client.on_connect = self._on_connect
+        self._mqtt_client.on_disconnect = self._on_disconnect
+
+    def _on_connect(self, client: Any, userdata: Any, flags: Any, rc: Any, *args: Any) -> None:
+        reason_code = rc if isinstance(rc, int) else getattr(rc, "value", rc)
+        if reason_code == 0:
+            logging.info("[MQTT] Connected successfully to broker %s:%d", self.config.broker, self.config.port)
+            client.subscribe(self.config.topic)
+            logging.info("[MQTT] Subscribed to topic: %s", self.config.topic)
+        else:
+            logging.error("[MQTT] Connection failed with code: %s", rc)
+
+    def _on_disconnect(self, client: Any, userdata: Any, *args: Any) -> None:
+        logging.warning("[MQTT] Disconnected from broker. Auto-reconnect active.")
